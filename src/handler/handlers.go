@@ -29,7 +29,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&user)
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		HandleError(err, w, http.StatusInternalServerError)
 		return
 	}
 	password := []byte(user.Password)
@@ -38,8 +38,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	Modify(user, hashedPassword)
 
 	if err := db.AddUser(user); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
+		HandleError(err, w, http.StatusInternalServerError)
 		return
 	}
 
@@ -53,21 +52,21 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&user)
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		HandleError(err, w, http.StatusInternalServerError)
 		return
 	}
 
 	foundUser, err := db.GetUserByUsername(user.Username)
 
-	if foundUser == nil {
-		w.WriteHeader(http.StatusNotFound)
+	if err != nil {
+		HandleError(err, w, http.StatusNotFound)
 		return
 	}
+
 	token := GenerateToken(foundUser)
 	CacheToken(foundUser, token)
 
 	json.NewEncoder(w).Encode(token)
-	w.Header().Set("Accept", "application/json")
 	return
 }
 
@@ -75,15 +74,13 @@ func GetUsers(w http.ResponseWriter, _ *http.Request) {
 	users, err := db.GetAllUsers()
 
 	if err != nil {
-		log.Println("Error GetAllUsers", err)
-		w.WriteHeader(http.StatusNotFound)
+		HandleError(err, w, http.StatusNotFound)
 		return
 	}
 
 	response := MapToUserResponse(users)
 
 	json.NewEncoder(w).Encode(response)
-	w.Header().Set("Accept", "application/json")
 	return
 }
 
@@ -105,7 +102,7 @@ func GetGithubEvents(w http.ResponseWriter, _ *http.Request) {
 	client := github.NewClient(nil)
 	orgs, _, err := client.Activity.ListEvents(context.Background(), nil)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		HandleError(err, w, http.StatusInternalServerError)
 		return
 	}
 	json.NewEncoder(w).Encode(orgs)
